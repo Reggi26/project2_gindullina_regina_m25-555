@@ -9,49 +9,64 @@ pip install project2-gindullina-regina-m25-555
  - ## Использование
 ### Запуск программы:
 
-project
+database
 
   
-### Доступные команды:
- - create_table - создать таблицу
+### Основные команды:
+#### Управление таблицами:
+ - create_table <имя> <столбец1:тип> ...   - создать таблицу  
+ - list_tables                             - список таблиц  
+ - drop_table <имя>                        - удалить таблицу  
+ - describe <имя>                          - структура таблицы  
 
- - list_tables - список таблиц
+#### CRUD операции:
 
- - drop_table - удалить таблицу
+ - insert <таблица> <значение1> <значение2> ...  - добавить запись  
+ - select <таблица> [where условие]              - выбрать записи  
+ - update <таблица> set ... [where условие]      - обновить записи  
+ - delete <таблица> [where условие]              - удалить записи  
+ - delete_all <таблица>                          - удалить ВСЕ записи  
 
- - help - справка
 
- - exit - выход
+#### Общие команды:
+help  - справка по командам  
+exit  - выход из программы  
 
+  
 ### Поддерживаемые типы данных:
  - int - целые числа
-
  - str - строки
-
  - bool - логические значения
 
 **Примечание:** Столбец *ID:int* автоматически добавляется ко всем таблицам.
 
  - ## Пример работы
+### 1. Создание таблицы и работа с данными
+
 ```bash
-$ project
-DB project is running!
-***Процесс работы с таблицей***
+# Создаем таблицу 
+create_table users name:str age:int is_active:bool
 
-Функции:
-<command> create_table <имя_таблицы> <столбец1:тип> .. - создать таблицу
-<command> list_tables - показать список всех таблиц
-<command> drop_table <имя_таблицы> - удалить таблицу
+# Добавляем записи
+insert users 'Иван Иванов' 25 true
+insert users 'Мария Петрова' 30 true
+insert users 'Алексей Сидоров' 22 false
 
-Общие команды:
-<command> exit - выход из программы
-<command> help - справочная информация
+# Просматриваем все записи
+select users
 
->>>Введите команду: create_table users name:str age:int
-Таблица "users" успешно создана со столбцами: ID:int, name:str, age:int
+# Выбираем по условию
+select users where age > 25
+select users where is_active = true
 
->>>Введите команду: list_tables
-- users
+# Обновляем запись
+update users set age = 26 where name = 'Иван Иванов'
 
->>>Введите команду: exit
-Выход из программы. До свидания!
+# Удаляем запись
+delete users where name = 'Алексей Сидоров'
+
+# Просматриваем структуру таблицы
+describe users
+
+# Удаляем таблицу
+drop_table users
