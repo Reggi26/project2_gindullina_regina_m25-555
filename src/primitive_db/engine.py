@@ -185,7 +185,7 @@ def run():
                     table_name = args[0]
                     try:
                         schema = get_table_schema(table_name)
-                        print(f"\n📊 Структура таблицы '{table_name}':")
+                        print(f"\n Структура таблицы '{table_name}':")
                         for name, col_type in schema:
                             print(f"  - {name}: {col_type}")
                     except ValueError as e:

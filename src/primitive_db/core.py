@@ -1,8 +1,13 @@
 # src/primitive_db/core.py
-
 import os
 from typing import Any, Dict, List, Optional, Tuple
 
+try:
+    from decorators import confirm_action, create_cacher, handle_db_errors, log_time
+except ImportError:
+    from src.decorators import confirm_action, create_cacher, handle_db_errors, log_time
+
+from .constants import DB_META_FILE, SUPPORTED_TYPES
 from .utils import (
     get_table_filepath,
     load_metadata,
@@ -11,9 +16,7 @@ from .utils import (
     save_table_data,
 )
 
-DB_META_FILE = 'db_meta.json'
-
-SUPPORTED_TYPES = {'int', 'str', 'bool'}
+select_cacher = create_cacher()
 
 
 def validate_column_definition(column_def: str) -> bool:
@@ -33,14 +36,17 @@ def parse_column_definition(column_def: str) -> Tuple[str, str]:
     return name.strip(), col_type
 
 
+@handle_db_errors
 def get_metadata() -> dict:
     return load_metadata(DB_META_FILE)
 
 
+@handle_db_errors
 def update_metadata(metadata: dict) -> None:
     save_metadata(DB_META_FILE, metadata)
 
 
+@handle_db_errors
 def create_table(table_name: str, columns_defs: List[str]) -> Tuple[bool, str]:
     metadata = get_metadata()
     
@@ -65,6 +71,8 @@ def create_table(table_name: str, columns_defs: List[str]) -> Tuple[bool, str]:
     return True, f'Таблица "{table_name}" успешно создана со столбцами: {columns_str}'
 
 
+@confirm_action("удаление таблицы")
+@handle_db_errors
 def drop_table(table_name: str) -> Tuple[bool, str]:
     metadata = get_metadata()
     
@@ -81,13 +89,14 @@ def drop_table(table_name: str) -> Tuple[bool, str]:
     return True, f'Таблица "{table_name}" успешно удалена.'
 
 
+@handle_db_errors
 def list_tables() -> List[str]:
     metadata = get_metadata()
     return list(metadata.keys())
 
 
 def parse_value(value_str: str, expected_type: str) -> Any:
-    """Преобразует строковое значение в нужный тип."""
+    """Преобразует строку в значение указанного типа."""
     if expected_type == 'int':
         try:
             return int(value_str)
@@ -112,8 +121,8 @@ def parse_value(value_str: str, expected_type: str) -> Any:
         raise ValueError(f"Неподдерживаемый тип: {expected_type}")
 
 
+@handle_db_errors
 def get_table_schema(table_name: str) -> List[Tuple[str, str]]:
-    """Возвращает схему таблицы в виде списка (имя, тип)."""
     metadata = get_metadata()
     if table_name not in metadata:
         raise ValueError(f"Таблица '{table_name}' не существует")
@@ -129,6 +138,8 @@ def get_table_schema(table_name: str) -> List[Tuple[str, str]]:
     return schema
 
 
+@log_time
+@handle_db_errors
 def insert(table_name: str, values: List[str]) -> Tuple[bool, str]:
     metadata = get_metadata()
     if table_name not in metadata:
@@ -137,7 +148,7 @@ def insert(table_name: str, values: List[str]) -> Tuple[bool, str]:
     table_data = load_table_data(table_name)
     
     schema = get_table_schema(table_name)
-    user_columns = schema[1:]  # Пропускаем ID
+    user_columns = schema[1:]
     
     if len(values) != len(user_columns):
         expected = len(user_columns)
@@ -166,41 +177,48 @@ def insert(table_name: str, values: List[str]) -> Tuple[bool, str]:
     return True, f'Запись успешно добавлена с ID={new_id}'
 
 
+@log_time
 def select(
     table_name: str, 
     where_clause: Optional[Dict[str, Any]] = None
 ) -> Tuple[bool, str, List[Dict]]:
-    metadata = get_metadata()
-    if table_name not in metadata:
-        msg = f'Таблица "{table_name}" не существует.'
-        return False, msg, []
+    def _select_internal():
+        metadata = get_metadata()
+        if table_name not in metadata:
+            msg = f'Таблица "{table_name}" не существует.'
+            return False, msg, []
+        
+        table_data = load_table_data(table_name)
+        
+        if not table_data:
+            return True, "Таблица пуста", []
+        
+        if where_clause:
+            filtered_data = []
+            for record in table_data:
+                match = True
+                for key, expected_value in where_clause.items():
+                    if key not in record or record[key] != expected_value:
+                        match = False
+                        break
+                if match:
+                    filtered_data.append(record)
+            result_data = filtered_data
+        else:
+            result_data = table_data
+        
+        if result_data:
+            message = f'Найдено {len(result_data)} записей'
+        else:
+            message = "Записи не найдены"
+        return True, message, result_data
     
-    table_data = load_table_data(table_name)
-    
-    if not table_data:
-        return True, "Таблица пуста", []
-    
-    if where_clause:
-        filtered_data = []
-        for record in table_data:
-            match = True
-            for key, expected_value in where_clause.items():
-                if key not in record or record[key] != expected_value:
-                    match = False
-                    break
-            if match:
-                filtered_data.append(record)
-        result_data = filtered_data
-    else:
-        result_data = table_data
-    
-    if result_data:
-        message = f'Найдено {len(result_data)} записей'
-    else:
-        message = "Записи не найдены"
-    return True, message, result_data
+    cache_key = (table_name, 
+             tuple(sorted(where_clause.items())) if where_clause else None)
+    return select_cacher(cache_key, _select_internal)
 
 
+@handle_db_errors
 def update(
     table_name: str, 
     set_clause: Dict[str, Any], 
@@ -251,6 +269,8 @@ def update(
         return True, "Записи для обновления не найдены"
 
 
+@confirm_action("удаление записей")
+@handle_db_errors
 def delete(
     table_name: str, 
     where_clause: Optional[Dict[str, Any]] = None
@@ -290,6 +310,7 @@ def delete(
         return True, "Записи для удаления не найдены"
 
 
+@handle_db_errors
 def delete_all(table_name: str) -> Tuple[bool, str]:
     metadata = get_metadata()
     if table_name not in metadata:
