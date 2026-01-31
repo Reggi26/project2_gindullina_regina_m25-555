@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "project2-gindullina-regina-m25-555"
-version = "0.1.1"
+version = "0.1.2"
 description = ""
 authors = ["Your Name <you@example.com>"]
 readme = "README.md"
@@ -11,6 +11,7 @@ packages = [
 [tool.poetry.dependencies]
 python = "^3.10"
 prompt = "^0.4.1"
+prettytable = "^3.17.0"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -23,6 +24,8 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 project = "src.primitive_db.main:main"
+database = "src.primitive_db.main:main"
+
 
 [tool.ruff]
 line-length = 88
