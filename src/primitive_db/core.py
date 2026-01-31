@@ -1,7 +1,15 @@
 # src/primitive_db/core.py
 
-from typing import List, Tuple, Dict, Any, Optional
-from .utils import load_metadata, save_metadata, load_table_data, save_table_data
+import os
+from typing import Any, Dict, List, Optional, Tuple
+
+from .utils import (
+    get_table_filepath,
+    load_metadata,
+    load_table_data,
+    save_metadata,
+    save_table_data,
+)
 
 DB_META_FILE = 'db_meta.json'
 
@@ -66,8 +74,6 @@ def drop_table(table_name: str) -> Tuple[bool, str]:
     del metadata[table_name]
     update_metadata(metadata)
     
-    import os
-    from .utils import get_table_filepath
     filepath = get_table_filepath(table_name)
     if os.path.exists(filepath):
         os.remove(filepath)
@@ -86,7 +92,8 @@ def parse_value(value_str: str, expected_type: str) -> Any:
         try:
             return int(value_str)
         except ValueError:
-            raise ValueError(f"Невозможно преобразовать '{value_str}' в int")
+            msg = f"Невозможно преобразовать '{value_str}' в int"
+            raise ValueError(msg)
     elif expected_type == 'bool':
         value_str = value_str.lower()
         if value_str in ('true', '1', 'yes'):
@@ -94,7 +101,8 @@ def parse_value(value_str: str, expected_type: str) -> Any:
         elif value_str in ('false', '0', 'no'):
             return False
         else:
-            raise ValueError(f"Невозможно преобразовать '{value_str}' в bool")
+            msg = f"Невозможно преобразовать '{value_str}' в bool"
+            raise ValueError(msg)
     elif expected_type == 'str':
         if (value_str.startswith('"') and value_str.endswith('"')) or \
            (value_str.startswith("'") and value_str.endswith("'")):
@@ -122,7 +130,6 @@ def get_table_schema(table_name: str) -> List[Tuple[str, str]]:
 
 
 def insert(table_name: str, values: List[str]) -> Tuple[bool, str]:
-
     metadata = get_metadata()
     if table_name not in metadata:
         return False, f'Таблица "{table_name}" не существует.'
@@ -133,7 +140,9 @@ def insert(table_name: str, values: List[str]) -> Tuple[bool, str]:
     user_columns = schema[1:]  # Пропускаем ID
     
     if len(values) != len(user_columns):
-        return False, f'Ожидается {len(user_columns)} значений, получено {len(values)}'
+        expected = len(user_columns)
+        received = len(values)
+        return False, f'Ожидается {expected} значений, получено {received}'
     
     if table_data:
         max_id = max(record.get('ID', 0) for record in table_data)
@@ -148,7 +157,8 @@ def insert(table_name: str, values: List[str]) -> Tuple[bool, str]:
             parsed_value = parse_value(value_str, col_type)
             new_record[col_name] = parsed_value
         except ValueError as e:
-            return False, f'Ошибка в столбце "{col_name}": {e}'
+            msg = f'Ошибка в столбце "{col_name}": {e}'
+            return False, msg
     
     table_data.append(new_record)
     save_table_data(table_name, table_data)
@@ -156,11 +166,14 @@ def insert(table_name: str, values: List[str]) -> Tuple[bool, str]:
     return True, f'Запись успешно добавлена с ID={new_id}'
 
 
-def select(table_name: str, where_clause: Optional[Dict[str, Any]] = None) -> Tuple[bool, str, List[Dict]]:
-
+def select(
+    table_name: str, 
+    where_clause: Optional[Dict[str, Any]] = None
+) -> Tuple[bool, str, List[Dict]]:
     metadata = get_metadata()
     if table_name not in metadata:
-        return False, f'Таблица "{table_name}" не существует.', []
+        msg = f'Таблица "{table_name}" не существует.'
+        return False, msg, []
     
     table_data = load_table_data(table_name)
     
@@ -181,12 +194,18 @@ def select(table_name: str, where_clause: Optional[Dict[str, Any]] = None) -> Tu
     else:
         result_data = table_data
     
-    message = f'Найдено {len(result_data)} записей' if result_data else "Записи не найдены"
+    if result_data:
+        message = f'Найдено {len(result_data)} записей'
+    else:
+        message = "Записи не найдены"
     return True, message, result_data
 
 
-def update(table_name: str, set_clause: Dict[str, Any], where_clause: Optional[Dict[str, Any]] = None) -> Tuple[bool, str]:
-
+def update(
+    table_name: str, 
+    set_clause: Dict[str, Any], 
+    where_clause: Optional[Dict[str, Any]] = None
+) -> Tuple[bool, str]:
     metadata = get_metadata()
     if table_name not in metadata:
         return False, f'Таблица "{table_name}" не существует.'
@@ -222,7 +241,8 @@ def update(table_name: str, set_clause: Dict[str, Any], where_clause: Optional[D
                             parsed_value = new_value
                         record[field] = parsed_value
                     except ValueError as e:
-                        return False, f'Ошибка в поле "{field}": {e}'
+                        msg = f'Ошибка в поле "{field}": {e}'
+                        return False, msg
     
     if updated_count > 0:
         save_table_data(table_name, table_data)
@@ -231,7 +251,10 @@ def update(table_name: str, set_clause: Dict[str, Any], where_clause: Optional[D
         return True, "Записи для обновления не найдены"
 
 
-def delete(table_name: str, where_clause: Optional[Dict[str, Any]] = None) -> Tuple[bool, str]:
+def delete(
+    table_name: str, 
+    where_clause: Optional[Dict[str, Any]] = None
+) -> Tuple[bool, str]:
     metadata = get_metadata()
     if table_name not in metadata:
         return False, f'Таблица "{table_name}" не существует.'
@@ -241,9 +264,9 @@ def delete(table_name: str, where_clause: Optional[Dict[str, Any]] = None) -> Tu
     if not table_data:
         return True, "Таблица пуста"
     
-
     if not where_clause:
-        return False, "Для удаления всех записей используйте команду 'delete_all'"
+        msg = "Для удаления всех записей используйте команду 'delete_all'"
+        return False, msg
     
     records_to_keep = []
     deleted_count = 0

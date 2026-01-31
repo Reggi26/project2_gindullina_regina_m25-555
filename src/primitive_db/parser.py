@@ -1,11 +1,10 @@
 # src/primitive_db/parser.py
 
 import shlex
-from typing import Dict, Any, Tuple
+from typing import Any, Dict, List
 
 
 def parse_where_clause(where_str: str) -> Dict[str, Any]:
-
     if not where_str:
         return {}
     

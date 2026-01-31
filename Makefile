@@ -18,3 +18,10 @@ lint:
 
 shell:
 	poetry shell
+
+test-crud:
+	poetry run python test_crud.py
+
+version:
+	poetry version
+

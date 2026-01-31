@@ -3,7 +3,6 @@
 import json
 import os
 
-
 DB_META_FILE = 'db_meta.json'
 DATA_DIR = 'data'
 

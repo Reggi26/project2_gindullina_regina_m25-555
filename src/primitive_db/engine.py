@@ -2,17 +2,25 @@
 
 import shlex
 from typing import List, Tuple
+
 from prettytable import PrettyTable
+
 from .core import (
-    create_table, drop_table, list_tables,
-    insert, select, update, delete, delete_all,
-    get_table_schema
+    create_table,
+    delete,
+    delete_all,
+    drop_table,
+    get_table_schema,
+    insert,
+    select,
+    update,
 )
-from .parser import parse_where_clause, parse_set_clause, parse_insert_values
-from .utils import load_metadata, DB_META_FILE
+from .parser import parse_insert_values, parse_set_clause, parse_where_clause
+from .utils import DB_META_FILE, load_metadata
 
 
 def print_help():
+    """Выводит справочную информацию о командах."""
     print("\n" + "="*60)
     print("ПРИМИТИВНАЯ БАЗА ДАННЫХ - CRUD ОПЕРАЦИИ")
     print("="*60)
@@ -23,7 +31,7 @@ def print_help():
     print("  drop_table <имя>                     - удалить таблицу")
     
     print("\nCRUD ОПЕРАЦИИ:")
-    print("  insert <таблица> <значение1> <значение2> ... - добавить запись")
+    print("  insert <таблица> <значение1> <значение2> ...")
     print("  select <таблица> [where условие]             - выбрать записи")
     print("  update <таблица> set ... [where условие]     - обновить записи")
     print("  delete <таблица> [where условие]             - удалить записи")
@@ -57,6 +65,7 @@ def parse_command(command: str) -> Tuple[str, List[str]]:
 
 
 def extract_where_clause(args: List[str]) -> Tuple[List[str], dict]:
+    """Извлекает условие WHERE из аргументов."""
     where_clause = {}
     if 'where' in args:
         where_index = args.index('where')
@@ -93,6 +102,7 @@ def extract_set_clause(args: List[str]) -> Tuple[List[str], dict]:
 
 
 def format_table_result(data: List[dict]) -> str:
+    """Форматирует данные таблицы с помощью PrettyTable."""
     if not data:
         return "Нет данных для отображения"
     
@@ -112,6 +122,7 @@ def format_table_result(data: List[dict]) -> str:
 
 
 def run():
+    """Основной цикл программы."""
     print("="*60)
     print("ПРИМИТИВНАЯ БАЗА ДАННЫХ ЗАПУЩЕНА!")
     print("="*60)
@@ -149,7 +160,8 @@ def run():
             elif cmd_name == "create_table":
                 if len(args) < 2:
                     print("Ошибка: Недостаточно аргументов.")
-                    print("   Использование: create_table <имя> <столбец1:тип> ...")
+                    usage = "Использование: create_table <имя> <столбец1:тип> ..."
+                    print(f"   {usage}")
                 else:
                     table_name = args[0]
                     columns = args[1:]
@@ -182,7 +194,8 @@ def run():
             elif cmd_name == "insert":
                 if len(args) < 2:
                     print(" Ошибка: Недостаточно аргументов.")
-                    print("   Использование: insert <таблица> <значение1> <значение2> ...")
+                    usage = "Использование: insert <таблица> <значение1> ..."
+                    print(f"   {usage}")
                 else:
                     table_name = args[0]
                     values = parse_insert_values(' '.join(args[1:]))
@@ -213,22 +226,26 @@ def run():
             elif cmd_name == "update":
                 if len(args) < 1:
                     print(" Ошибка: Недостаточно аргументов.")
-                    print("   Использование: update <таблица> set ... [where условие]")
+                    print("   Использование: update <таблица> set ... [where]")
                 else:
                     table_name = args[0]
                     try:
-                        # Извлекаем SET и WHERE
                         remaining_args, set_clause = extract_set_clause(args[1:])
                         if not set_clause:
                             print(" Ошибка: Отсутствует условие SET")
-                            print("   Использование: update <таблица> set поле=значение [where условие]")
+                            usage = "Использование: update <таблица> set поле=значение"
+                            print(f"   {usage} [where условие]")
                             continue
                         
-                        remaining_args, where_clause = extract_where_clause(remaining_args)
+                        remaining_args, where_clause = extract_where_clause(
+                            remaining_args
+                        )
                         
                         if not where_clause:
-                            print("  Внимание: Будет обновлено ВСЕ записи в таблице!")
-                            confirm = input("   Продолжить? (yes/no): ").strip().lower()
+                            msg = "Внимание: Будет обновлено ВСЕ записи в таблице!"
+                            print(f"  {msg}")
+                            confirm = input("   Продолжить? (yes/no): ")
+                            confirm = confirm.strip().lower()
                             if confirm != 'yes':
                                 print(" Операция отменена")
                                 continue
@@ -248,7 +265,8 @@ def run():
                         remaining_args, where_clause = extract_where_clause(args[1:])
                         
                         if not where_clause:
-                            print("  Внимание: Для удаления всех записей используйте 'delete_all'")
+                            msg = "Внимание: Для удаления всех записей используйте"
+                            print(f"  {msg} 'delete_all'")
                             continue
                         
                         success, message = delete(table_name, where_clause)
@@ -262,8 +280,11 @@ def run():
                     print("   Использование: delete_all <таблица>")
                 else:
                     table_name = args[0]
-                    print(f"  ВНИМАНИЕ: Вы собираетесь удалить ВСЕ записи из таблицы '{table_name}'!")
-                    confirm = input("   Это действие нельзя отменить. Продолжить? (yes/no): ").strip().lower()
+                    msg = "ВНИМАНИЕ: Вы собираетесь удалить ВСЕ записи"
+                    print(f"  {msg} из таблицы '{table_name}'!")
+                    confirm_msg = "Это действие нельзя отменить. Продолжить?"
+                    confirm = input(f"   {confirm_msg} (yes/no): ")
+                    confirm = confirm.strip().lower()
                     if confirm == 'yes':
                         success, message = delete_all(table_name)
                         print(f" {message}" if success else f" {message}")
@@ -271,7 +292,8 @@ def run():
                         print(" Операция отменена")
                     
             else:
-                print(f" Команда '{cmd_name}' не найдена. Введите 'help' для справки.")
+                msg = f"Команда '{cmd_name}' не найдена."
+                print(f" {msg} Введите 'help' для справки.")
                 
         except EOFError:
             print("\n Обнаружен конец файла. Выход...")
